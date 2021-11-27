@@ -14,13 +14,18 @@ variables:
   solution: '**/*.sln'
   buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
-  major: 1
+  major: 2
   minor: 0
   patch: $[counter(variables['minor'], 0)] # will be reset when minor changes
   NugetVersion: $(major).$(minor).$(patch)
 
 steps:
 - task: NuGetToolInstaller@1
+
+- task: UseDotNet@2
+  displayName: 'Use dotnet 6'
+  inputs:
+    version: '6.x'
 
 - task: NuGetCommand@2
   inputs:
