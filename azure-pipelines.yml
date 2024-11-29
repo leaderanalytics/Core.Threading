@@ -4,33 +4,40 @@
 # https://docs.microsoft.com/azure/devops/pipelines/languages/dotnet-core
 
 trigger:
-- main
+  tags:
+      include:
+        - release/*  
 
 pool:
   vmImage: 'windows-latest'
 
 variables:
-  project: '**/Core.Threading.csproj'
+  project: 'Core.Threading/Core.Threading.csproj'
   solution: '**/*.sln'
   buildPlatform: 'Any CPU'
   buildConfiguration: 'Release'
-  major: 2
-  minor: 0
-  patch: $[counter(variables['minor'], 0)] # will be reset when minor changes
-  NugetVersion: $(major).$(minor).$(patch)
+  
 
 steps:
-- task: NuGetToolInstaller@1
+# nbgv need a deep clone
 
-- task: UseDotNet@2
-  displayName: 'Use dotnet 6'
-  inputs:
-    version: '6.x'
+- checkout: self
+  fetchDepth: 0
 
-- task: NuGetCommand@2
+# install nbgv tooling
+
+- task: DotNetCoreCLI@2  
+  displayName: Install NBGV tool
   inputs:
-    restoreSolution: '$(solution)'
-    vstsFeed: 'LeaderAnalyticsFeed'
+    command: custom
+    custom: tool
+    arguments: install --tool-path . nbgv
+
+# allow nbgv to set the version
+
+- script: nbgv cloud
+  displayName: Set Version
+
 
 - task: DotNetCoreCLI@2
   displayName: 'dotnet build'
@@ -41,15 +48,19 @@ steps:
 
 
 - task: DotNetCoreCLI@2
-  displayName: "dotnet pack"
+  displayName: 'dotnet pack'
   inputs:
-    command: 'pack'
-    arguments: '--configuration $(buildConfiguration)'
-    packagesToPack: $(project)
-    versioningScheme: 'byEnvVar'
-    versionEnvVar: 'NugetVersion'
+    command: 'custom'
+    custom: 'pack'
+    arguments: '$(project) /p:PublicRelease=true --no-build --include-symbols --include-source -c=Release -o $(build.artifactstagingdirectory)'
 
-   
+- task: AzureKeyVault@2
+  name: KeyVaultSecrets
+  displayName: Get Nuget API key from Key Vault
+  inputs:
+    azureSubscription: 'All Azure Services'
+    KeyVaultName: 'LeaderAnalyticsVault'
+    SecretsFilter: 'nuget-apikey'   
 
 - task: NuGetCommand@2
   inputs:
